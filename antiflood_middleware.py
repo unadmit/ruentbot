@@ -1,23 +1,26 @@
-# settings.py
-## importing the load_dotenv from the python-dotenv module
-from dotenv import load_dotenv
+from telebot.asyncio_handler_backends import BaseMiddleware, CancelUpdate
 
-## using existing module to specify location of the .env file
-from pathlib import Path
-import os
+class AntiFloodMiddleware(BaseMiddleware):
+    def __init__(self, limit, bot) -> None:
+        self.last_time = {}
+        self.limit = limit
+        self.update_types = ['message']
+        self.bot = bot
+        # Always specify update types, otherwise middlewares won't work
 
-load_dotenv()
-env_path = Path('.')/'.env'
-load_dotenv(dotenv_path=env_path)
 
-# retrieving keys and adding them to the project
-# from the .env file through their key names
-TOKEN = os.getenv("TOKEN")
-DBNAME = os.getenv("DBNAME")
-DBUSER = os.getenv("DBUSER")
-DBPASS = os.getenv("DBPASS")
-TOKENDA = os.getenv("TOKENDA")
-DBNAMEDA = os.getenv("DBNAMEDA")
-DBUSERDA = os.getenv("DBUSERDA")
-DBPASSDA = os.getenv("DBPASSDA")
-SHA256SECRET = os.getenv("SHA256SECRET")
+    async def pre_process(self, message, data):
+        if not message.from_user.id in self.last_time:
+            # User is not in a dict, so lets add and cancel this function
+            self.last_time[message.from_user.id] = message.date
+            return
+        if message.date - self.last_time[message.from_user.id] < self.limit:
+            # User is flooding
+            await self.bot.send_message(message.chat.id, 'You are making request too often')
+            return CancelUpdate()
+        # write the time of the last request
+        self.last_time[message.from_user.id] = message.date
+
+        
+    async def post_process(self, message, data, exception):
+        pass
